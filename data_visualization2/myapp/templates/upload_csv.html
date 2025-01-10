@@ -1,0 +1,227 @@
+<!-- upload_csv.html -->
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyse de données CSV</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Ajout des plugins Chart.js pour zoom et interaction -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="{% static 'js/chart-config.js' %}"></script>
+    <script src="{% static 'js/chart-utils.js' %}"></script>
+</head>
+<body>
+    <div class="progress-bar">
+        <div class="step active">1. Upload</div>
+        <div class="step">2. Aperçu</div>
+        <div class="step">3. Analyse</div>
+        <div class="step">4. Visualisation</div>
+    </div>
+
+    <main>
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Section Upload -->
+        <section id="upload-section" class="analysis-section card-shadow">
+            <h2>1. Téléchargement du fichier</h2>
+            <form method="POST" enctype="multipart/form-data" class="upload-form">
+                {% csrf_token %}
+                <div class="file-upload">
+                    <input type="file" name="csv_file" id="csv_file" accept=".csv" required>
+                    <label for="csv_file" class="file-label">
+                        <span class="file-icon">📁</span>
+                        <span class="file-text">Choisir un fichier CSV</span>
+                    </label>
+                </div>
+                <button type="submit" class="primary-button">Télécharger</button>
+            </form>
+        </section>
+
+        {% if data_html %}
+        <!-- Section Aperçu -->
+        <section id="preview-section" class="analysis-section card-shadow">
+            <h2>2. Aperçu des données</h2>
+            <div class="controls">
+                <form method="POST" class="inline-form">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label for="num_rows">Nombre de lignes :</label>
+                        <input type="number" name="num_rows" id="num_rows" min="1" value="5" class="form-input">
+                        <button type="submit" class="secondary-button">Actualiser</button>
+                    </div>
+                </form>
+            </div>
+            <div class="table-container modern-table">
+                {{ data_html|safe }}
+            </div>
+        </section>
+
+        <!-- Section Analyse -->
+        <section id="analysis-section" class="analysis-section card-shadow">
+            <h2>3. Analyse des données</h2>
+            <div class="analysis-grid">
+                <!-- Sélection ligne/colonne -->
+                <div class="analysis-card">
+                    <h3>Sélection des données</h3>
+                    <div class="tabs">
+                        <button class="tab-button active" data-tab="row">Par ligne</button>
+                        <button class="tab-button" data-tab="column">Par colonne</button>
+                    </div>
+                    <div class="tab-content active" id="row-tab">
+                        <form method="POST" class="selection-form">
+                            {% csrf_token %}
+                            <input type="number" name="row_index" placeholder="Index de ligne" required class="form-input">
+                            <button type="submit" class="secondary-button">Afficher</button>
+                        </form>
+                        {% if row_data %}
+                        <div class="result-card">
+                            <pre>{{ row_data|pprint }}</pre>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="tab-content" id="column-tab">
+                        <form method="POST" class="selection-form">
+                            {% csrf_token %}
+                            <select name="column_name" class="form-input" required>
+                                <option value="">Sélectionner une colonne</option>
+                                {% for column in columns %}
+                                <option value="{{ column }}">{{ column }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="secondary-button">Afficher</button>
+                        </form>
+                        {% if column_data %}
+                        <div class="result-card">
+                            <pre>{{ column_data|pprint }}</pre>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Statistiques sous la sélection des données -->
+                <div class="analysis-card statistics-card">
+                    <h3>Statistiques descriptives</h3>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="show_stats" value="1">
+                        <button type="submit" class="secondary-button">Calculer</button>
+                    </form>
+                    {% if stats_data %}
+                    <div class="stats-container">
+                        {{ stats_data|safe }}
+                    </div>
+                    {% endif %}
+                </div>
+
+        <!-- Section Visualisation -->
+        <section id="visualization-section" class="analysis-section card-shadow">
+            <h2>4. Visualisation des données</h2>
+            <div class="visualization-controls">
+                <form method="POST" id="visualization-form" class="visualization-form">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label for="plot_type">Type de graphique:</label>
+                        <select name="plot_type" id="plot_type" class="form-input" required>
+                            <option value="">Sélectionner un type</option>
+                            <option value="line">Ligne</option>
+                            <option value="bar">Barres</option>
+                            <option value="scatter">Nuage de points</option>
+                            <option value="histogram">Histogramme</option>
+                            <option value="box">Boîte à moustaches</option>
+                            <option value="pie">Camembert</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="variable">Variable:</label>
+                        <select name="variable" id="variable" class="form-input" required>
+                            <option value="">Sélectionner une variable</option>
+                            {% for column in columns %}
+                            <option value="{{ column }}">{{ column }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="primary-button">Générer le graphique</button>
+                </form>
+            </div>
+            <div class="visualization-container">
+                <div class="chart-wrapper">
+                    <canvas id="dataChart"></canvas>
+                </div>
+                <div class="chart-controls">
+                    <button id="zoom-in" class="chart-button">
+                        <span class="button-icon">🔍+</span>
+                    </button>
+                    <button id="zoom-out" class="chart-button">
+                        <span class="button-icon">🔍-</span>
+                    </button>
+                    <button id="reset-zoom" class="chart-button">
+                        <span class="button-icon">↺</span>
+                    </button>
+                    <button id="download-png" class="chart-button">
+                        <span class="button-icon">💾 PNG</span>
+                    </button>
+                    <button id="download-svg" class="chart-button">
+                        <span class="button-icon">💾 SVG</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+    </main>
+
+    <script src="{% static 'js/script.js' %}"></script>
+    <script src="{% static 'js/script.js' %}"></script>
+
+    <footer class="site-footer">
+        <div class="footer-content">
+            <div class="footer-text">
+                <p>&copy; {% now "Y" %} Développé par Hassan Haddadi Tous droits réservés.</p>
+                <p>Contact: <a href="mailto:hassanhaddadi400@gmail.com">hassanhaddadi400@gmail.com</a></p>
+            </div>
+        </div>
+    </footer>
+
+    <style>
+        .site-footer {
+            background-color: #f8f9fa;
+            padding: 1.5rem 0;
+            margin-top: 2rem;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+            text-align: center;
+        }
+
+        .footer-text {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .footer-text a {
+            color: #007bff;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-text a:hover {
+            color: #0056b3;
+            text-decoration: underline;
+        }
+    </style>
+</body>
+
+</html>
